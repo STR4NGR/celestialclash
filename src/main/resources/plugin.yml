@@ -1,0 +1,6 @@
+name: CelestialClash
+version: 1.0
+main: com.celestialclash.Main
+description: Celestial Clash is a game mode that combines digging, intense battles and accumulation of points implemented using the Spigot plugin.
+author: STR4NGR
+api-version: '1.20'
