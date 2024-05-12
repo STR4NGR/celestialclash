@@ -21,7 +21,22 @@ public class Pit {
     public Pit(Vector3D startLocation) {
         this.startLocation = startLocation;
         pitBlocks = new ArrayList<PitBlock>();
+        pitLoot = new Loot(width * height * length, 40);
         generatePit(width, length, height);
+    }
+
+    public Pit(Pit existingPit, Vector3D startLocation) {
+        this.width = existingPit.width;
+        this.length = existingPit.length;
+        this.height = existingPit.height;
+        this.startLocation = startLocation;
+        this.pitBlocks = new ArrayList<PitBlock>();
+        this.pitLoot = existingPit.getLoot();
+        generatePit(this.width, this.length, this.height);
+    }
+
+    public Loot getLoot() {
+        return pitLoot;
     }
 
     public String checkPit() {
@@ -57,7 +72,6 @@ public class Pit {
 
     private List<PitBlock> generatePit(int width, int length, int height) {
         World world = Bukkit.getWorld("world");
-        pitLoot = new Loot(width * height * length, 40);
         Location pitStart = new Location(world, startLocation.x(), startLocation.y(), startLocation.z());
         int blockIndex = 0;
         for (int x = 0; x <= width - 1; x++) {
