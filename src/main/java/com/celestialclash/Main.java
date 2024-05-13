@@ -6,16 +6,11 @@ import java.util.List;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
-import org.bukkit.Effect;
-import org.bukkit.GameMode;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -25,14 +20,7 @@ import org.bukkit.event.server.ServerLoadEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Particle;
-import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockState;
-import org.bukkit.block.data.Levelled;
-import org.bukkit.block.data.type.Door;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -40,17 +28,12 @@ import org.bukkit.scoreboard.Criteria;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.ScoreboardManager;
 import org.bukkit.scoreboard.Team;
 
 import com.celestialclash.arena.Manager;
-import com.celestialclash.pit.Loot;
 import com.celestialclash.pit.Pit;
 import com.celestialclash.pit.PitBlock;
 import com.celestialclash.utils.Vector3D;
-
-import net.md_5.bungee.api.ChatMessageType;
-import net.md_5.bungee.api.chat.TextComponent;
 
 public class Main extends JavaPlugin implements Listener {
 
@@ -68,7 +51,8 @@ public class Main extends JavaPlugin implements Listener {
 
     private List<Player> connectedPlayers = new ArrayList<>();
     private Player killed;
-    private int frags = 3;
+    private int frags = 25;
+    private int startDelay = 7;
 
     private HashMap<UUID, ArrayList<Block>> blocksPlacedByPlayers = new HashMap<>();
 
@@ -93,7 +77,7 @@ public class Main extends JavaPlugin implements Listener {
         manager.assignPlayerToTeam(player);
         killsObjective.getScore(player.getName()).setScore(0);
         manager.checkOpponent(player);
-        getReady(player, 7);
+        getReady(player, startDelay);
     
     }
 
@@ -114,22 +98,6 @@ public class Main extends JavaPlugin implements Listener {
         manager.clearArena(blocksPlacedByPlayers);
     }
     
-
-    @EventHandler
-    public void onChat(AsyncPlayerChatEvent event) {
-        String message = event.getMessage();
-        if (message.contains("test")) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage(" ");
-            event.getPlayer().sendMessage(" " + firstPit.checkPit());
-            event.getPlayer().sendMessage(" ");
-            event.getPlayer().sendMessage(" " + secondPit.checkPit());
-        }
-        if (message.contains("shuffle")) {
-            event.setCancelled(true);
-            firstPit.regeneratePit();
-        }
-    }
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Block block = event.getBlock();
@@ -144,19 +112,32 @@ public class Main extends JavaPlugin implements Listener {
             if (blockType == Material.STONE) {
                 event.setDropItems(false);
                 if ((x <= -4) && (x >= -7) && (y <= -54) && (y >= -63) && (z >= 15) && (z <= 18)) {
-                    event.setCancelled(false);
-                    firstPitBlock = firstPit.findBlockByCoords(new Vector3D(block.getX(), block.getY(), block.getZ()));
-                    event.getPlayer().sendMessage("Index " + firstPit.getPitBlocks(firstPit).indexOf(firstPitBlock) + ": " + firstPitBlock.getItem());
-                    block.getWorld().dropItemNaturally(blockLocation, new ItemStack(firstPitBlock.Drop()));
-                } else if ((x <= -3) && (x >= -7) && (y <= -54) && (y >= -63) && (z <= -7) && (z >= -11)) {
-                    event.setCancelled(false);
-                    secondPitBlock = secondPit.findBlockByCoords(new Vector3D(block.getX(), block.getY(), block.getZ()));
-                    event.getPlayer().sendMessage("Index " + secondPit.getPitBlocks(secondPit).indexOf(secondPitBlock) + ": " + secondPitBlock.getItem());
-                    block.getWorld().dropItemNaturally(blockLocation, new ItemStack(secondPitBlock.Drop()));
+                    {
+                        event.setCancelled(false);
+                        firstPitBlock = firstPit.findBlockByCoords(new Vector3D(block.getX(), block.getY(), block.getZ()));
+                        Material dropType = firstPitBlock.Drop();
+                        if (dropType == Material.BOW || dropType == Material.CROSSBOW) {
+                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(dropType));
+                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(Material.ARROW, 12));
+                        } else {
+                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(dropType));
+                        }
+                    }
+                    } else if ((x <= -3) && (x >= -7) && (y <= -54) && (y >= -63) && (z <= -7) && (z >= -11)) {
+                        event.setCancelled(false);
+                        secondPitBlock = secondPit.findBlockByCoords(new Vector3D(block.getX(), block.getY(), block.getZ()));
+                        Material dropType = secondPitBlock.Drop();
+                        if (dropType == Material.BOW || dropType == Material.CROSSBOW) {
+                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(dropType));
+                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(Material.ARROW, 12));
+                        } else {
+                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(dropType));
+                        }
                 } else {
-                    event.getPlayer().sendMessage("Index " + x + y + z);
                     event.setCancelled(true);
                 }
+            } else {
+                event.setCancelled(true);
             }
         } else {
             event.setCancelled(true);
@@ -180,6 +161,8 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     private void pitTimer(Player player, int delay) {
+        pitStart();
+        isDigging = true;
         manager.removeItems(player);
         ItemStack pickaxe = new ItemStack(Material.STONE_PICKAXE);
         player.getInventory().addItem(pickaxe);
@@ -242,7 +225,7 @@ public class Main extends JavaPlugin implements Listener {
                     } else if (blueTeam.hasEntry(player.getName())) {
                         manager.reSpawn(player, "Blue");
                     }
-                    getReady(player, 7);                    
+                    getReady(player, startDelay);                    
                 } else { cancel(); }
             }
             
@@ -267,7 +250,7 @@ public class Main extends JavaPlugin implements Listener {
                     } else if (blueTeam.hasEntry(player.getName())) {
                         manager.reSpawn(player, "Blue");
                     }
-                    pitTimer(player, 7);
+                    pitTimer(player, startDelay);
                 }
             }
             
@@ -283,9 +266,19 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
+        Vector3D redButton = new Vector3D(-2, -51, -9);
+        Vector3D blueButton = new Vector3D(-9, -52, 15);
         if ((event.getClickedBlock() != null && event.getClickedBlock().getType() == Material.STONE_BUTTON) && (isNotMoving)) {
-            player.sendMessage("Расположение вещей в яме изменено!");
-            firstPit.regeneratePit();
+            Location buttonLocation = event.getClickedBlock().getLocation();
+            Vector3D blockLoc = new Vector3D(buttonLocation.getBlockX(), buttonLocation.getBlockY(), buttonLocation.getBlockZ());
+            if (blockLoc.getVector().equals(redButton.getVector())) {
+                player.sendMessage("Расположение вещей в яме изменено!");
+                secondPit.regeneratePit();
+            }
+            if (blockLoc.getVector().equals(blueButton.getVector())) {
+                player.sendMessage("Расположение вещей в яме изменено!");
+                firstPit.regeneratePit();
+            }
         }
         if (event.getClickedBlock() != null) {
             Material blockType = event.getClickedBlock().getType();
@@ -311,9 +304,9 @@ public class Main extends JavaPlugin implements Listener {
                 new BukkitRunnable() {
                     @Override
                     public void run() {
-                        startNewMatch(killer, killed); // Метод для начала нового матча
+                        startNewMatch(killer, killed);
                     }
-                }.runTaskLater(this, 60L); // 60 тиков = 3 секунды    
+                }.runTaskLater(this, 60L);  
         
             } else {
                 afterDeath(killed);
@@ -324,24 +317,21 @@ public class Main extends JavaPlugin implements Listener {
 
     }
 
-    public void startNewMatch(Player killer, Player killed) {
-        killsObjective.getScore(killed.getName()).setScore(0);
-        killsObjective.getScore(killer.getName()).setScore(0);    
+    public void prepareNewMatch(Player player) {
         Team redTeam = scoreboard.getTeam("Red");
         Team blueTeam = scoreboard.getTeam("Blue");
-        if (redTeam.hasEntry(killer.getName())) {
-            manager.reSpawn(killer, "Red");
-        } else if (blueTeam.hasEntry(killer.getName())) {
-            manager.reSpawn(killer, "Blue");
+        killsObjective.getScore(player.getName()).setScore(0);
+        if (redTeam.hasEntry(player.getName())) {
+            manager.reSpawn(player, "Red");
+        } else if (blueTeam.hasEntry(player.getName())) {
+            manager.reSpawn(player, "Blue");
         }
-        if (redTeam.hasEntry(killed.getName())) {
-            manager.reSpawn(killed, "Red");
-        } else if (blueTeam.hasEntry(killed.getName())) {
-            manager.reSpawn(killed, "Blue");
-        }
-        getReady(killer, 7);
-        getReady(killed, 7);
+        getReady(player, startDelay);
+    }
 
+    public void startNewMatch(Player killer, Player killed) {
+        prepareNewMatch(killed);
+        prepareNewMatch(killer);
     }
 
     public void setupScoreboard() {
@@ -357,14 +347,14 @@ public class Main extends JavaPlugin implements Listener {
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         Team redTeam = scoreboard.getTeam("Red");
         Team blueTeam = scoreboard.getTeam("Blue");
-        Location respawnLocation = new Location(Bukkit.getWorld("world"), -2.5, -52, -5.3, -155, 2);
+        Location redSpawn = new Location(Bukkit.getWorld("world"), -2.5, -52, -5.3, -155, 2);
+        Location blueSpawn = new Location(Bukkit.getWorld("world"), -8.181, -53, 13.758, 26, 5);  
         if (redTeam.hasEntry(killed.getName())) { 
-            respawnLocation = new Location(Bukkit.getWorld("world"), -2.5, -52, -5.3, -155, 2);
+            event.setRespawnLocation(redSpawn); 
         }
         if (blueTeam.hasEntry(killed.getName())) {
-            respawnLocation = new Location(Bukkit.getWorld("world"), -8.181, -53, 13.758, 26, 5);           
+            event.setRespawnLocation(blueSpawn);         
         }
-        event.setRespawnLocation(respawnLocation);
     }
 
     @EventHandler
@@ -383,19 +373,23 @@ public class Main extends JavaPlugin implements Listener {
         manager.isPlayerReady = false;
         connectedPlayers.remove(player);
         if (!connectedPlayers.isEmpty()) {
-            getReady(connectedPlayers.get(connectedPlayers.size() - 1), 7);
+            getReady(connectedPlayers.get(connectedPlayers.size() - 1), startDelay);
         }
 
         killsObjective.getScore(player.getName()).setScore(0);
     }
 
-    @EventHandler
-    public void onServerLoad(ServerLoadEvent event) {
+    public void pitStart() {
         initialize();
         firstPitLocation = new Vector3D(-6.700, -63, 15.300);
         secondPitLocation = new Vector3D(-6.5, -63, -11);
         firstPit = new Pit(firstPitLocation);
-        secondPit = new Pit(firstPit, secondPitLocation);
+        secondPit = new Pit(firstPit, secondPitLocation);       
+    }
+
+    @EventHandler
+    public void onServerLoad(ServerLoadEvent event) {
+        pitStart();
     }
 
 }

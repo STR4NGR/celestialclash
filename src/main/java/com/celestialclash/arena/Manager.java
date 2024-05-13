@@ -136,6 +136,7 @@ public class Manager {
                 player.getPlayer().getInventory().remove(item);
             }
         }
+        player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
     }
     
     
