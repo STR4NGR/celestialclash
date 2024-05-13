@@ -21,7 +21,9 @@ Celestial Clash is a game mode that combines digging, intense battles and accumu
  - A timer for 5 seconds starts.
  - Players reappear on the map near the triggers to start a new round.
  - To balance the game, it was decided that an identical set of items would appear in the pits.
-In this project, I was fully responsible for creating this modification. To implement the excavation pit, I devised a special system in which:
+   
+In this project, I was fully responsible for creating this modification. To implement the excavation pit,
+I devised a special system in which:
 A random list of items is selected from pre-created arrays of Weapon, Equip, Arrow, Filler.
 A tower measuring 4x4x9 is created, and the coordinates of the created blocks are recorded in an array.
 Items from the list of random items are also recorded in this array.
