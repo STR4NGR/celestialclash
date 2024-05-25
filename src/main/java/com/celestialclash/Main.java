@@ -17,7 +17,6 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.server.ServerLoadEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -29,10 +28,14 @@ import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
+import org.bukkit.inventory.ItemStack;
 
+import com.celestialclash.api.ItemsAPI;
 import com.celestialclash.arena.Manager;
+import com.celestialclash.pit.EquipmentDropResult;
 import com.celestialclash.pit.Pit;
 import com.celestialclash.pit.PitBlock;
+import com.celestialclash.rabbitmq.ItemsRMQ;
 import com.celestialclash.utils.Vector3D;
 
 public class Main extends JavaPlugin implements Listener {
@@ -51,6 +54,8 @@ public class Main extends JavaPlugin implements Listener {
 
     private List<Player> connectedPlayers = new ArrayList<>();
     private Player killed;
+    private ItemsAPI API;
+    private ItemsRMQ RMQ;
     private int frags = 25;
     private int startDelay = 7;
 
@@ -64,6 +69,13 @@ public class Main extends JavaPlugin implements Listener {
         String message = "Плагин успешно запущен и работает!";
 
         Bukkit.getServer().broadcastMessage(message);
+
+        API = new ItemsAPI();
+        API.start(591);
+
+        RMQ = new ItemsRMQ();
+        RMQ.connectToRabbitMQ();
+
         setupScoreboard();
         this.getLogger().info("Plugin is started!");
         
@@ -72,12 +84,14 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         event.getPlayer().sendMessage("Добро пожаловать на сервер!");
-        Player player = event.getPlayer();
-        connectedPlayers.add(player);
-        manager.assignPlayerToTeam(player);
-        killsObjective.getScore(player.getName()).setScore(0);
-        manager.checkOpponent(player);
-        getReady(player, startDelay);
+        if (setupScoreboard() != null) {
+            Player player = event.getPlayer();
+            connectedPlayers.add(player);
+            manager.assignPlayerToTeam(player);
+            killsObjective.getScore(player.getName()).setScore(0);
+            manager.checkOpponent(player);
+            getReady(player, startDelay);
+        }
     
     }
 
@@ -114,24 +128,18 @@ public class Main extends JavaPlugin implements Listener {
                 if ((x <= -4) && (x >= -7) && (y <= -54) && (y >= -63) && (z >= 15) && (z <= 18)) {
                     {
                         event.setCancelled(false);
-                        firstPitBlock = firstPit.findBlockByCoords(new Vector3D(block.getX(), block.getY(), block.getZ()));
-                        Material dropType = firstPitBlock.Drop();
-                        if (dropType == Material.BOW || dropType == Material.CROSSBOW) {
-                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(dropType));
-                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(Material.ARROW, 12));
-                        } else {
-                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(dropType));
+                        firstPitBlock = firstPit.findBlockByCoords(new Vector3D(block.getX(), block.getY(), block.getZ())); 
+                        EquipmentDropResult myequip = firstPitBlock.Drop(block.getWorld(), blockLocation);
+                        if (myequip.getIndex() != 0) {
+                            event.getPlayer().sendMessage("Index " + myequip.getIndex() + ": " + myequip.getEquipment());
                         }
                     }
                     } else if ((x <= -3) && (x >= -7) && (y <= -54) && (y >= -63) && (z <= -7) && (z >= -11)) {
                         event.setCancelled(false);
-                        secondPitBlock = secondPit.findBlockByCoords(new Vector3D(block.getX(), block.getY(), block.getZ()));
-                        Material dropType = secondPitBlock.Drop();
-                        if (dropType == Material.BOW || dropType == Material.CROSSBOW) {
-                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(dropType));
-                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(Material.ARROW, 12));
-                        } else {
-                            block.getWorld().dropItemNaturally(blockLocation, new ItemStack(dropType));
+                        secondPitBlock = secondPit.findBlockByCoords(new Vector3D(block.getX(), block.getY(), block.getZ())); 
+                        EquipmentDropResult myequip = secondPitBlock.Drop(block.getWorld(), blockLocation);
+                        if (myequip.getIndex() != 0) {
+                            event.getPlayer().sendMessage("Index " + (myequip.getIndex() + 40) + ": " + myequip.getEquipment());
                         }
                 } else {
                     event.setCancelled(true);
@@ -153,6 +161,14 @@ public class Main extends JavaPlugin implements Listener {
                     cancel();
                     pitTimer(player, delay);
                 } else {
+                    Team redTeam = scoreboard.getTeam("Red");
+                    Team blueTeam = scoreboard.getTeam("Blue");
+                    if (redTeam.hasEntry(player.getName())) {
+                        manager.reSpawn(player, "Red");
+                    } else if (blueTeam.hasEntry(player.getName())) {
+                        manager.reSpawn(player, "Blue");
+                    }
+                    isNotMoving = true;
                     manager.sendActionBar(player, "Ожидание других игроков");
                 }
             }
@@ -165,6 +181,8 @@ public class Main extends JavaPlugin implements Listener {
         isDigging = true;
         manager.removeItems(player);
         ItemStack pickaxe = new ItemStack(Material.STONE_PICKAXE);
+        ItemStack cobblestoneStack = new ItemStack(Material.COBBLESTONE, 64);
+        player.getInventory().addItem(cobblestoneStack);
         player.getInventory().addItem(pickaxe);
         initialize();
         final int[] pitSeconds = {delay};
@@ -334,25 +352,28 @@ public class Main extends JavaPlugin implements Listener {
         prepareNewMatch(killer);
     }
 
-    public void setupScoreboard() {
+    public Objective setupScoreboard() {
         scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
         killsObjective = scoreboard.getObjective("Kills");
         if (killsObjective == null) {
             killsObjective = scoreboard.registerNewObjective("Kills", Criteria.DUMMY, "Kills");
             killsObjective.setDisplaySlot(DisplaySlot.SIDEBAR);
         }
+        manager.createTeams();
+        return killsObjective;
     }
 
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
         Team redTeam = scoreboard.getTeam("Red");
         Team blueTeam = scoreboard.getTeam("Blue");
         Location redSpawn = new Location(Bukkit.getWorld("world"), -2.5, -52, -5.3, -155, 2);
         Location blueSpawn = new Location(Bukkit.getWorld("world"), -8.181, -53, 13.758, 26, 5);  
-        if (redTeam.hasEntry(killed.getName())) { 
+        if (redTeam.hasEntry(player.getName())) { 
             event.setRespawnLocation(redSpawn); 
         }
-        if (blueTeam.hasEntry(killed.getName())) {
+        if (blueTeam.hasEntry(player.getName())) {
             event.setRespawnLocation(blueSpawn);         
         }
     }
@@ -372,11 +393,15 @@ public class Main extends JavaPlugin implements Listener {
         manager.removeItems(player);
         manager.isPlayerReady = false;
         connectedPlayers.remove(player);
+
         if (!connectedPlayers.isEmpty()) {
+            killsObjective.getScore(player.getName()).setScore(0);
             getReady(connectedPlayers.get(connectedPlayers.size() - 1), startDelay);
+        } else {
+            manager.removeMainScoreboard();
+            manager.isPlayerReady = true;
         }
 
-        killsObjective.getScore(player.getName()).setScore(0);
     }
 
     public void pitStart() {
@@ -390,6 +415,15 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler
     public void onServerLoad(ServerLoadEvent event) {
         pitStart();
+        RMQ.sendMessageToRabbitMQ("Text from RabbitMQ");
+    }
+
+    @Override
+    public void onDisable() {
+        manager.removeMainScoreboard();
+        manager.isPlayerReady = true;
+        API.stop();
+        RMQ.disconnectFromRabbitMQ();
     }
 
 }

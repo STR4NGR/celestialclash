@@ -15,6 +15,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.scoreboard.Criteria;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
@@ -37,7 +38,7 @@ public class Manager {
         createTeams();
     }
 
-    private void createTeams() {
+    public void createTeams() {
         if (scoreboard.getTeam("Red") == null) {
             redTeam = scoreboard.registerNewTeam("Red");
             redTeam.setPrefix("§c");
@@ -51,11 +52,11 @@ public class Manager {
     public void assignPlayerToTeam(Player player) {
         redTeam = scoreboard.getTeam("Red");
         blueTeam = scoreboard.getTeam("Blue");
-        if (redTeam.getEntries().size() < 1) {
+        if (redTeam.getEntries().isEmpty()) {
             redTeam.addEntry(player.getName());
             reSpawn(player, "Red");
             player.sendMessage("Вы в команде §cRed§r.");
-        } else if (blueTeam.getEntries().size() < 1) {
+        } else if (blueTeam.getEntries().isEmpty()) {
             blueTeam.addEntry(player.getName());
             reSpawn(player, "Blue");
             player.sendMessage("Вы в команде §9Blue§r.");
@@ -129,6 +130,27 @@ public class Manager {
         }
     }
 
+    public void removeMainScoreboard() {
+        Scoreboard mainScoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
+        Objective killsObjective = mainScoreboard.getObjective("Kills");
+        
+        if (killsObjective != null) {
+            killsObjective.unregister();
+        }
+        
+        for (DisplaySlot slot : DisplaySlot.values()) {
+            mainScoreboard.clearSlot(slot);
+        }
+
+        for (Team team : mainScoreboard.getTeams()) {
+            team.unregister();
+        }
+        
+        for (String entry : mainScoreboard.getEntries()) {
+            mainScoreboard.resetScores(entry);
+        }
+    }
+
     public void removeItems(Player player) {
         ItemStack[] playerItems = player.getInventory().getContents();
         for (ItemStack item : playerItems) {
@@ -137,7 +159,21 @@ public class Manager {
             }
         }
         player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
-    }
+        player.getInventory().setHelmet(null);
+        player.getInventory().setChestplate(null);
+        player.getInventory().setLeggings(null);
+        player.getInventory().setBoots(null);
+
+        for (PotionEffect effect : player.getActivePotionEffects()) {
+            player.removePotionEffect(effect.getType());
+        }
+
+        // Восстановление уровня голода до максимального значения (20)
+        player.setFoodLevel(20);
+
+        // Восстановление уровня насыщения до максимального значения
+        player.setSaturation(20);
+        }
     
     
 }
